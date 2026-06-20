@@ -6,12 +6,15 @@ Docs at:   http://127.0.0.1:8000/docs
 
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 
 from ml_engine import llm_engine
 from schemas import GenerationRequest, GenerationResponse
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -45,6 +48,7 @@ def generate_text(request: GenerationRequest) -> GenerationResponse:
             top_k=request.top_k,
             top_p=request.top_p,
         )
-    except Exception as exc:  # noqa: BLE001  surface a clean 500
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return GenerationResponse(result=result, token_usage=len(result.split()))
+    except Exception as exc:  # noqa: BLE001  log detail, return a generic message
+        logger.exception("Generation failed")
+        raise HTTPException(status_code=500, detail="Generation failed.") from exc
+    return GenerationResponse(result=result, token_usage=llm_engine.count_tokens(result))

@@ -18,7 +18,7 @@ So I built the smallest thing that demonstrates I understand that difference.
 
 It's a FastAPI service that serves TinyLlama behind a clean HTTP endpoint.
 
-You POST a prompt, it runs the model through a proper chat template, samples a response with the generation knobs you'd expect (temperature, top_k, top_p), and returns the text plus a token-usage count. There's a health check at the root and auto-generated Swagger docs at `/docs`.
+You POST a prompt, it runs the model through a proper chat template, samples a response with the generation knobs you'd expect (temperature, top_k, top_p), and returns the text plus a token-usage count. There's a status route at `/`, a dedicated `/health` readiness check, and auto-generated Swagger docs at `/docs`.
 
 The model loads once, on startup. Not per request. That single decision is the difference between a toy and something shippable.
 
@@ -87,10 +87,10 @@ Pydantic does the gatekeeping before any of that runs. `prompt` needs `min_lengt
 
 I didn't copy the tutorial. I extended it where a real deployment would force me to:
 
-1. **Token usage in the response.** I return `token_usage` on every call, so a caller can track cost and I can spot a runaway prompt before it eats my GPU.
-2. **Hard validation limits.** The `max_tokens` ceiling at 1024 isn't cosmetic — it's a cost and latency guardrail baked into the contract, not buried in a comment.
-3. **A real `/health` endpoint.** Returns status and whether the model is loaded. That's the first thing any orchestrator or load balancer asks before sending traffic.
-4. **Dockerized it.** One `Dockerfile`, pinned dependencies, reproducible build. "Works on my machine" doesn't count as shipped.
+1. **Real token usage in the response.** I return `token_usage` computed with the model's own tokenizer (not a word count), so a caller can track cost and I can spot a runaway prompt before it eats my GPU.
+2. **Hard validation limits.** The `max_tokens` ceiling at 1024 isn't cosmetic — it's a cost and latency guardrail baked into the contract, not buried in a comment. Prompts must also be non-empty (not whitespace-only), and `temperature`/`top_p` must be > 0 because the model samples.
+3. **A real `/health` endpoint.** Returns status and whether the model is loaded — separate from the `/` status route. That's the first thing any orchestrator or load balancer asks before sending traffic.
+4. **Safe error responses.** Failures are logged server-side but return a generic message to the client, so raw stack traces and internals never leak through the API. (Dockerization and a vLLM backend are on the roadmap, not done yet.)
 
 ## Where it breaks
 

@@ -29,7 +29,7 @@ The codebase is deliberately split into three files, each with one responsibilit
 - **`schemas.py`** — owns the contract. Pydantic models with hard bounds: `prompt` (`min_length=1`), `max_tokens` (`10–1024`), `temperature` (`0.0–1.0`). Invalid requests are rejected before any compute is spent.
 - **`main.py`** — owns the wiring. The FastAPI app, an `asynccontextmanager` lifespan that loads the model at boot, and the routes (`GET /`, `GET /health`, `POST /generate`).
 
-```
+```text
 HTTP request
      │
      ▼
@@ -55,7 +55,7 @@ Response  { result, token_usage }
 
 ## Project structure
 
-```
+```text
 production-llm-api/
 ├── ml_engine.py        # loads the model ONCE on startup; generate()
 ├── schemas.py          # Pydantic request/response models + validation bounds
@@ -111,9 +111,11 @@ Example response:
 
 | Field | Type | Bounds | Description |
 |-------|------|--------|-------------|
-| `prompt` | string | `min_length=1` | Input prompt (cannot be empty) |
+| `prompt` | string | non-empty (not whitespace-only) | Input prompt |
 | `max_tokens` | int | `10`–`1024` | Max tokens to generate |
-| `temperature` | float | `0.0`–`1.0` | Sampling temperature |
+| `temperature` | float | `>0.0`–`1.0` | Sampling temperature |
+| `top_k` | int | `1`–`200` | Top-k sampling cutoff |
+| `top_p` | float | `>0.0`–`1.0` | Nucleus sampling cutoff |
 
 ## Configuration
 
@@ -134,7 +136,7 @@ pytest
 
 - **No auth or rate limiting by default** — add both before exposing this to the open internet.
 - **Single process won't scale** — for real load, run replicas or a dedicated serving stack like vLLM.
-- **`/generate` is a sync `def`** — blocking inference stalls the event loop under concurrency; offload to a worker.
+- **Throughput is serialized.** FastAPI runs the sync `/generate` endpoint in a threadpool, so one request doesn't block the event loop — but the threadpool caps concurrency and a single resident model still serializes heavy inference. Scale out with replicas or a dedicated serving stack.
 - **Memory ceiling** — TinyLlama fits modest hardware; larger models will hit your RAM/VRAM limits.
 
 ## Roadmap

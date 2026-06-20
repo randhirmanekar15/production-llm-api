@@ -19,17 +19,22 @@ class LLMEngine:
 
     def load_model(self) -> None:
         """Load the model. Call once, on startup."""
-        import torch
         from transformers import pipeline
 
         print(f"Loading {MODEL_ID} ...")
         self.pipe = pipeline(
             "text-generation",
             model=MODEL_ID,
-            torch_dtype=torch.bfloat16,
+            torch_dtype="auto",  # let Transformers pick the right dtype per device
             device_map="auto",
         )
         print("Model loaded.")
+
+    def count_tokens(self, text: str) -> int:
+        """Count tokens in text using the model's own tokenizer."""
+        if self.pipe is None:
+            raise RuntimeError("Model is not loaded. Call load_model() first.")
+        return len(self.pipe.tokenizer.encode(text))
 
     def generate(
         self,
@@ -57,9 +62,9 @@ class LLMEngine:
             temperature=temperature,
             top_k=top_k,
             top_p=top_p,
+            return_full_text=False,  # return only the completion, no manual slicing
         )
-        generated = outputs[0]["generated_text"]
-        return generated[len(formatted):]
+        return outputs[0]["generated_text"]
 
 
 llm_engine = LLMEngine()
